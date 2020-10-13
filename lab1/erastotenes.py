@@ -1,5 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from mpi4py import MPI
+import numpy as np
 import sys
 import os
 import math
@@ -10,10 +11,12 @@ def is_divisible_by(x):
 
 
 def erastotenes_loop(arr, dividers):
-  if not arr or not dividers or not arr[-1] > dividers[0]:
-    return arr
-  arr = list(filter(lambda x : x == dividers[0] or not is_divisible_by(dividers[0])(x), arr))
-  return erastotenes_loop(arr, dividers[1:])
+  res = arr
+  for d in dividers:
+    if not res[-1] > d:
+      return res
+    res = list(filter(lambda x : x == d or not is_divisible_by(d)(x), res))
+  return res
 
 
 def erastotenes(arr):
@@ -32,15 +35,25 @@ if __name__ == "__main__":
     exit(1)
 
   N = int(sys.argv[1])
-  data = range(2, N+1)
 
   comm = MPI.COMM_WORLD
-  size = comm.Get_size()
+  world_size = comm.Get_size()
   rank = comm.Get_rank()
 
-  data = comm.scatter(data, root=0)
+  size_per_node = int(N / world_size)
+
+  buffer_sizes = [size_per_node if i + 1 != world_size else N - i * size_per_node - 1 for i in range(world_size)]
+  recvbuff = np.zeros(N - 1, dtype='i')
+
+  offset = 2 + rank * size_per_node
+  data = range(offset, offset + buffer_sizes[rank])
+
   data = erastotenes(data)
+
+  comm.Gatherv(np.array(data, dtype='i'), (recvbuff, buffer_sizes, None, MPI.INT), root=0)
   print(rank, data)
-  data = comm.gather(data, root=0)
+
   if rank == 0:
+    non_zero = lambda x : x != 0
+    data = list(filter(non_zero, recvbuff))
     print(data)
