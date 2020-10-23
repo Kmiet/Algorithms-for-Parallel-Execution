@@ -7,16 +7,20 @@
 #SBATCH --partition=plgrid-testing
 #SBATCH --account=plgkrkmi2020a
 
-POINTS=$1
+N=$1
+M=$2
+G=$3
+L=$4
+E=$5
 
-loadMPI() {
-  module add plgrid/tools/openmpi
-  module add plgrid/tools/python
-}
+# loadMPI() {
+#   module add plgrid/tools/openmpi
+#   module add plgrid/tools/python
+# }
 
 run() {
-  mpirun -np 2 ./gauss seidel.py $POINTS
+  mpirun -np 5 ./gauss_seidel.py $N $M $G $L $E
 }
 
-loadMPI &&
+# loadMPI &&
 run
