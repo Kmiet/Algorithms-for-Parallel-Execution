@@ -127,7 +127,6 @@ if __name__ == "__main__":
       phase = BLACK
     else:
       phase = RED
-    comm.Barrier()
 
   comm.Gatherv(data, (recvbuff, buffer_sizes, None, MPI.DOUBLE), root=0)
   # print(rank, data)
