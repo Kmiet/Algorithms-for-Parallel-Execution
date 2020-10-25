@@ -19,16 +19,16 @@ def gauss_seidel(upper, lower, phase=0, epsilon=0.001):
   # red phase
   for j in range(phase_size):
     i = j * 2 + phase
-    up = upper[j % N]
+    up = upper[i % N]
     left = 0
     right = 0
-    down = lower[j % N]
+    down = lower[i % N]
 
     if i % N != 0:
       left = data[i-1]
     if (i + 1) % N != 0:
       right = data[i+1]
-    if i / N != 0:
+    if i // N != 0:
       up = data[i - N]
     if i < (problem_size - N):
       down = data[i + N]
