@@ -11,7 +11,7 @@ POINTS=$1
 
 loadMPI() {
   module add plgrid/tools/openmpi
-  module add plgrid/tools/python
+  module add plgrid/tools/python-intel/3.6.5
 }
 
 run() {

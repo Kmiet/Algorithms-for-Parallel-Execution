@@ -87,7 +87,8 @@ if __name__ == "__main__":
   if rank == (world_size - 1):
     lower_last_iteration = True
 
-  phase = RED
+  should_start_with_red = True if ((rows_per_node % 2) * rank) % 2 == 0 else False
+  phase = RED if should_start_with_red else BLACK
 
   while True:
     # communication
@@ -116,12 +117,12 @@ if __name__ == "__main__":
 
     is_last_iteration = gauss_seidel(upper, lower, phase=phase, epsilon=e)
 
-    if rank > int(world_size / 2):
-      is_last_iteration = is_last_iteration and lower_last_iteration
-    elif rank < int(world_size / 2):
-      is_last_iteration = is_last_iteration and upper_last_iteration
-    else:
-      is_last_iteration = is_last_iteration and upper_last_iteration and lower_last_iteration
+    # if rank > int(world_size / 2):
+    #   is_last_iteration = is_last_iteration and lower_last_iteration
+    # elif rank < int(world_size / 2):
+    #   is_last_iteration = is_last_iteration and upper_last_iteration
+    # else:
+    #   is_last_iteration = is_last_iteration and upper_last_iteration and lower_last_iteration
     
     if phase == RED:
       phase = BLACK
@@ -129,8 +130,8 @@ if __name__ == "__main__":
       phase = RED
 
   comm.Gatherv(data, (recvbuff, buffer_sizes, None, MPI.DOUBLE), root=0)
-  # print(rank, data)
-  # comm.Barrier()
+  print(rank, data)
+  comm.Barrier()
 
   if rank == 0:
     print("RESULT")

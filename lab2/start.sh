@@ -13,14 +13,14 @@ G=$3
 L=$4
 E=$5
 
-# loadMPI() {
-#   module add plgrid/tools/openmpi
-#   module add plgrid/tools/python
-# }
+loadMPI() {
+  module add plgrid/tools/openmpi
+  module add plgrid/tools/python-intel/3.6.5
+}
 
 run() {
   mpirun -np 5 ./gauss_seidel.py $N $M $G $L $E
 }
 
-# loadMPI &&
+loadMPI &&
 run
