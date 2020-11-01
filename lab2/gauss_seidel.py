@@ -77,6 +77,7 @@ if __name__ == "__main__":
   lower = np.zeros(N)
 
   row_buffer = np.empty(N + 1)
+  row_buffer_2 = np.empty(N + 1)
 
   is_last_iteration = False
   upper_last_iteration = False
@@ -100,9 +101,9 @@ if __name__ == "__main__":
       comm.Send([row_buffer, MPI.DOUBLE], dest=rank-1)
 
     if not lower_last_iteration:
-      row_buffer[:N] = data[-N:]
-      row_buffer[-1] = int(is_last_iteration)
-      comm.Send([row_buffer, MPI.DOUBLE], dest=rank+1)
+      row_buffer_2[:N] = data[-N:]
+      row_buffer_2[-1] = int(is_last_iteration)
+      comm.Send([row_buffer_2, MPI.DOUBLE], dest=rank+1)
 
     if not upper_last_iteration:
       comm.Recv([row_buffer, MPI.DOUBLE], source=rank-1)
@@ -110,9 +111,9 @@ if __name__ == "__main__":
       upper_last_iteration = int(row_buffer[-1]) != 0
 
     if not lower_last_iteration:
-      comm.Recv([row_buffer, MPI.DOUBLE], source=rank+1)
-      lower[:N] = row_buffer[:N]
-      lower_last_iteration = int(row_buffer[-1]) != 0
+      comm.Recv([row_buffer_2, MPI.DOUBLE], source=rank+1)
+      lower[:N] = row_buffer_2[:N]
+      lower_last_iteration = int(row_buffer_2[-1]) != 0
 
     if is_last_iteration:
       break
