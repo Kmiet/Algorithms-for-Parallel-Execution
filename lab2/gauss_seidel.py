@@ -90,6 +90,8 @@ if __name__ == "__main__":
   should_start_with_red = True if ((rows_per_node % 2) * rank) % 2 == 0 else False
   phase = RED if should_start_with_red else BLACK
 
+  start_time = MPI.Wtime()
+
   while True:
     # communication
     if not upper_last_iteration:
@@ -130,9 +132,11 @@ if __name__ == "__main__":
       phase = RED
 
   comm.Gatherv(data, (recvbuff, buffer_sizes, None, MPI.DOUBLE), root=0)
-  print(rank, data)
+  # print(rank, data)
+  end_time = MPI.Wtime()
   comm.Barrier()
 
   if rank == 0:
-    print("RESULT")
-    print(recvbuff.reshape((M, N)))
+    print(N * M, world_size, end_time - start_time)
+    # print("RESULT")
+    # print(recvbuff.reshape((M, N)))
