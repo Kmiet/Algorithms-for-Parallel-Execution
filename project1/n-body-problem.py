@@ -5,42 +5,75 @@ import sys
 import os
 import math
 
-
 def read_star_file():
   global N
   star_count = 0;
-  M, Rx, Ry, Rz, Vx, Vy, Vz = [[] for _ in range(7)]
+  stars = []
 
   with open('stars.txt') as f:
     line = f.readline()
     while line:
+      M, Rx, Ry, Rz, Vx, Vy, Vz = line.split(" ")
+      stars.append([M, Rx, Ry, Rz, Vx, Vy, Vz])
       star_count += 1
-      f.readline()
+      line = f.readline()
 
   if N != star_count:
     N = star_count
 
-  return M, Rx, Ry, Rz, Vx, Vy, Vz
+  stars = np.array(stars, dtype=np.double).reshape((N, 7))
+
+  return stars
+
+
+def save_to_file(stars):
+  with open('stars.txt', 'w+') as f:
+    for s in stars:
+      M, Rx, Ry, Rz, Vx, Vy, Vz = s
+      print(M, Rx, Ry, Rz, Vx, Vy, Vz, file=f)
 
 
 def gen_star_data():
   global N
-  return []
+  stars = np.random.rand(N, 7)
+
+  return stars
 
 
-def gauss_seidel(upper):
-  return upper
+def calculate_forces(stars, neighbour_stars, acc=None, same_stars=False):
+  global G
+
+  F = np.zeros((len(stars), 3))
+
+  for i, s1 in enumerate(stars):
+    Mi, Rxi, Ryi, Rzi, Vxi, Vyi, Vzi = s1
+    Ri = np.array([Rxi, Ryi, Rzi])
+
+    for j, s2 in enumerate(neighbour_stars):
+      if not same_stars or i != j:
+        Mj, Rxj, Ryj, Rzj, Vxj, Vyj, Vzj = s2
+        Rj = np.array([Rxj, Ryj, Rzj])
+
+        F[i] += Mj / (math.sqrt((Rxj - Rxi) ** 2 + (Ryj - Ryi) ** 2 + (Rzj - Rzi) ** 2)) * (Ri - Rj)
+
+    F[i] *= G * Mi
+  
+  if acc:
+    F += acc
+
+  return F
 
 
 if __name__ == "__main__":
-  global N
+  global N, G
   argc = len(sys.argv)
   if argc != 2:
-    print("Missing argument - N. Usage: gauss_seidel.py <n> <m> <efficiency> <conductivity> <epsilon> \n")
+    print("Missing argument - N. Usage: n-body-problem.py <n>\n")
     exit(1)
 
   # Star count
   N = int(sys.argv[1])
+  G = 6.67
 
   comm = MPI.COMM_WORLD
   world_size = comm.Get_size()
@@ -50,64 +83,45 @@ if __name__ == "__main__":
   right_neighbour = rank + 1 if rank != (world_size - 1) else 0
   
   stars_per_node = int(N / world_size)
-  
-  buffer_sizes = [stars_per_node if i + 1 != world_size else N - (i * stars_per_node) for i in range(world_size)]
-  
-  M, Rx, Ry, Rz, Vx, Vy, Vz = [[] for _ in range(7)] 
 
+  # buffer_sizes = [stars_per_node if i + 1 != world_size else N - (i * stars_per_node) for i in range(world_size)]
+
+  stars = None
   if rank == 0:
-    M, Rx, Ry, Rz, Vx, Vy, Vz = gen_star_data()
+    stars = read_star_file()
+    # stars = gen_star_data()
+    # save_to_file(stars)
+    stars = np.array_split(stars, world_size)
+  stars = comm.scatter(stars, root=0)
 
-  recvbuff = np.full(problem_size, b)
+  # recvbuff = np.zeros((N, 3))
 
-  offset = rank * stars_per_node
-  M = M[offset : (offset + buffer_sizes[rank])]
-  Rx = Rx[offset : (offset + buffer_sizes[rank])]
-  Ry = Ry[offset : (offset + buffer_sizes[rank])]
-  Rz = Rz[offset : (offset + buffer_sizes[rank])]
-  Vx = Vx[offset : (offset + buffer_sizes[rank])]
-  Vy = Vy[offset : (offset + buffer_sizes[rank])]
-  Vz = Vz[offset : (offset + buffer_sizes[rank])]
+  # F = np.zeros((N, 3))
 
   start_time = MPI.Wtime()
+  F = calculate_forces(stars, stars, same_stars=True)
 
-  
+  star_buffer = np.zeros(stars_per_node + 1)
+  star_buffer[:stars_per_node] = stars
+  star_buffer[-1] = rank
 
-  while True:
-    # communication
-    if not upper_last_iteration:
-      row_buffer[:N] = data[:N]
-      row_buffer[-1] = int(is_last_iteration)
-      comm.Send([row_buffer, MPI.DOUBLE], dest=rank-1)
+  for _ in range(world_size - 1):
+    comm.Send([star_buffer, MPI.DOUBLE], dest=right_neighbour)
+    comm.Recv([star_buffer, MPI.DOUBLE], source=left_neighbour)
 
-    if not lower_last_iteration:
-      row_buffer_2[:N] = data[-N:]
-      row_buffer_2[-1] = int(is_last_iteration)
-      comm.Send([row_buffer_2, MPI.DOUBLE], dest=rank+1)
+    new_stars = star_buffer[:stars_per_node] 
+    star_owner = star_buffer[-1]
 
-    if not upper_last_iteration:
-      comm.Recv([row_buffer, MPI.DOUBLE], source=rank-1)
-      upper[:N] = row_buffer[:N]
-      upper_last_iteration = int(row_buffer[-1]) != 0
+    F = calculate_forces(stars, new_stars, acc=F)
 
-    if not lower_last_iteration:
-      comm.Recv([row_buffer_2, MPI.DOUBLE], source=rank+1)
-      lower[:N] = row_buffer_2[:N]
-      lower_last_iteration = int(row_buffer_2[-1]) != 0
-
-    if is_last_iteration:
-      break
-
-    is_last_iteration = gauss_seidel(upper, lower, phase=phase, epsilon=e)
-
-  comm.Gatherv(data, (recvbuff, buffer_sizes, None, MPI.DOUBLE), root=0)
+  F = comm.gather(F, root=0)
+  # comm.Gatherv(F, (recvbuff, buffer_sizes, None, MPI.DOUBLE), root=0)
   if rank == 0:
+    print(F)
 
-  # print(rank, data)
-  end_time = MPI.Wtime()
-  comm.Barrier()
+  # # print(rank, data)
+  # end_time = MPI.Wtime()
+  # comm.Barrier()
 
-  if rank == 0:
-    print(N * M, world_size, end_time - start_time)
-    # print("RESULT")
-    # print(recvbuff.reshape((M, N)))
+  # if rank == 0:
+  #   print(N * M, world_size, end_time - start_time)
