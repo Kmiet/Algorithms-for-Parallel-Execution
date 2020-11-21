@@ -109,24 +109,16 @@ if __name__ == "__main__":
 
   # stars = np.reshape(stars, (stars_per_node, star_size))
 
-  print(rank, 'star_buff', left_neighbour, right_neighbour)
-
   for _ in range(int(world_size / 2)):
     comm.Send([star_buffer, MPI.DOUBLE], dest=left_neighbour)
     comm.Recv([star_buffer, MPI.DOUBLE], source=right_neighbour)
 
-    print(rank, 'comm')
-
     new_stars = star_buffer[:star_buffer_size] 
     Facc = star_buffer[star_buffer_size:star_buffer_size + acc_size]
 
-    print(rank, 'facc')
-
     tmp_F = calculate_forces(stars, np.reshape(new_stars, (stars_per_node, star_size)))
-    print(rank, 'tmpF')
     F += tmp_F
     star_buffer[star_buffer_size:star_buffer_size + acc_size] = Facc + np.reshape(tmp_F, acc_size)
-    print(rank, True)
 
   comm.Send([star_buffer, MPI.DOUBLE], dest=star_buffer[-1])
   comm.Recv([star_buffer, MPI.DOUBLE], source=(star_buffer[-1] + 1) % world_size)
