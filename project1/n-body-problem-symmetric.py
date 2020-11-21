@@ -84,9 +84,10 @@ if __name__ == "__main__":
   right_neighbour = rank + 1 if rank != (world_size - 1) else 0
   
   star_size = 7
+  force_size = 3
   stars_per_node = int(N / world_size)
 
-  fname='stars_' + str(N) + '.txt'
+  fname = 'stars_' + str(N) + '.txt'
 
   stars = None
   if rank == 0:
@@ -95,25 +96,45 @@ if __name__ == "__main__":
     # save_to_file(stars)
     stars = np.array_split(stars, world_size)
   stars = comm.scatter(stars, root=0)
-
   start_time = MPI.Wtime()
-  F = calculate_forces(stars, stars, same_stars=True)
-
+  
   star_buffer_size = stars_per_node * star_size
-  star_buffer = np.zeros(star_buffer_size + 1)
+  acc_size = stars_per_node * force_size
+  F = np.zeros((stars_per_node, force_size))
+  
+  star_buffer = np.zeros(star_buffer_size + acc_size + 1)
   star_buffer[:star_buffer_size] = np.reshape(stars, stars_per_node * star_size)
+  star_buffer[star_buffer_size:star_buffer_size + acc_size] = np.reshape(F, acc_size)
   star_buffer[-1] = rank
 
   # stars = np.reshape(stars, (stars_per_node, star_size))
 
-  for _ in range(world_size - 1):
+  print(rank, 'star_buff', left_neighbour, right_neighbour)
+
+  for _ in range(int(world_size / 2)):
     comm.Send([star_buffer, MPI.DOUBLE], dest=left_neighbour)
     comm.Recv([star_buffer, MPI.DOUBLE], source=right_neighbour)
 
-    new_stars = star_buffer[:star_buffer_size] 
-    star_owner = star_buffer[-1]
+    print(rank, 'comm')
 
-    F = calculate_forces(stars, np.reshape(new_stars, (stars_per_node, star_size)), acc=F)
+    new_stars = star_buffer[:star_buffer_size] 
+    Facc = star_buffer[star_buffer_size:star_buffer_size + acc_size]
+
+    print(rank, 'facc')
+
+    tmp_F = calculate_forces(stars, np.reshape(new_stars, (stars_per_node, star_size)))
+    print(rank, 'tmpF')
+    F += tmp_F
+    star_buffer[star_buffer_size:star_buffer_size + acc_size] = Facc + np.reshape(tmp_F, acc_size)
+    print(rank, True)
+
+  comm.Send([star_buffer, MPI.DOUBLE], dest=star_buffer[-1])
+  comm.Recv([star_buffer, MPI.DOUBLE], source=(star_buffer[-1] + 1) % world_size)
+
+  Facc = star_buffer[star_buffer_size:star_buffer_size + acc_size]
+  tmp_F = calculate_forces(stars, stars, same_stars=True)
+  F += tmp_F
+  F -= np.reshape(Facc, (stars_per_node, force_size))
 
   # print(rank, F)
 

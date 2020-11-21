@@ -27,8 +27,9 @@ def read_star_file(fname=None):
   return stars
 
 
-def save_to_file(stars):
-  with open('stars.txt', 'w+') as f:
+def save_to_file(stars, fname=None):
+  filenam = fname if fname is not None else 'stars.txt'
+  with open(filenam, 'w+') as f:
     for s in stars:
       M, Rx, Ry, Rz, Vx, Vy, Vz = s
       print(M, Rx, Ry, Rz, Vx, Vy, Vz, file=f)
@@ -79,48 +80,18 @@ if __name__ == "__main__":
   comm = MPI.COMM_WORLD
   world_size = comm.Get_size()
   rank = comm.Get_rank()
-
-  left_neighbour = rank - 1 if rank != 0 else world_size - 1
-  right_neighbour = rank + 1 if rank != (world_size - 1) else 0
   
   star_size = 7
-  stars_per_node = int(N / world_size)
 
   fname='stars_' + str(N) + '.txt'
 
-  stars = None
-  if rank == 0:
-    stars = read_star_file(fname)
-    # stars = gen_star_data()
-    # save_to_file(stars)
-    stars = np.array_split(stars, world_size)
-  stars = comm.scatter(stars, root=0)
+  stars = read_star_file(fname)
+  # if rank == 0:
+  #   save_to_file(stars, fname)
 
   start_time = MPI.Wtime()
   F = calculate_forces(stars, stars, same_stars=True)
-
-  star_buffer_size = stars_per_node * star_size
-  star_buffer = np.zeros(star_buffer_size + 1)
-  star_buffer[:star_buffer_size] = np.reshape(stars, stars_per_node * star_size)
-  star_buffer[-1] = rank
-
-  # stars = np.reshape(stars, (stars_per_node, star_size))
-
-  for _ in range(world_size - 1):
-    comm.Send([star_buffer, MPI.DOUBLE], dest=left_neighbour)
-    comm.Recv([star_buffer, MPI.DOUBLE], source=right_neighbour)
-
-    new_stars = star_buffer[:star_buffer_size] 
-    star_owner = star_buffer[-1]
-
-    F = calculate_forces(stars, np.reshape(new_stars, (stars_per_node, star_size)), acc=F)
-
-  # print(rank, F)
-
-  F = comm.gather(F, root=0)
   end_time = MPI.Wtime()
-  comm.Barrier()
 
   if rank == 0:
-    # print(np.array(F).tolist())
     print(N, world_size, end_time - start_time)
