@@ -85,9 +85,10 @@ if __name__ == "__main__":
 
   fname='stars_' + str(N) + '.txt'
 
-  stars = read_star_file(fname)
-  # if rank == 0:
-  #   save_to_file(stars, fname)
+  # stars = read_star_file(fname)
+  stars = gen_star_data()
+  if rank == 0:
+    save_to_file(stars, fname)
 
   start_time = MPI.Wtime()
   F = calculate_forces(stars, stars, same_stars=True)
