@@ -1,9 +1,9 @@
-!/bin/bash -l
-SBATCH --ntasks 32
-SBATCH --constraint="intel"
-SBATCH --time=00:05:00
-SBATCH --partition=plgrid-testing
-SBATCH --account=plgkrkmi2020a
+#!/bin/bash -l
+#SBATCH --ntasks 8
+#SBATCH --constraint="intel"
+#SBATCH --time=00:05:00
+#SBATCH --partition=plgrid-testing
+#SBATCH --account=plgkrkmi2020a
 
 N=$1
 
