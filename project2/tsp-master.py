@@ -22,10 +22,10 @@ def read_distances(filename):
       distance_matrix.append([int(d) for d in line.split(",")])
       line = f.readline()
 
-  return np.array(distance_matrix)
+  return np.array(distance_matrix).flatten()
 
 
-if __main__ == "__main__":
+if __name__ == "__main__":
   argc = len(sys.argv)
   if argc != 2:
     print("Missing argument - filename. Usage: tsp-master.py <filename>\n")
@@ -35,13 +35,13 @@ if __main__ == "__main__":
   city_count = count_cities(sys.argv[1])
   distances_end_index = 3 + city_count ** 2
 
-  buffer = np.zeros(distances_end_index + city_count - 1, dtype='i')
+  buffer = np.zeros(distances_end_index + city_count, dtype='i')
 
   buffer[0] = 1
   buffer[1] = 0
   buffer[2] = city_count
   buffer[3 : distances_end_index] = read_distances(sys.argv[1])
-  buffer[distances_end_index : -1] = range(1, city_count)
+  buffer[distances_end_index : -1] = np.array(range(1, city_count))
 
   comm = MPI.COMM_SELF.Spawn(sys.executable, args=['tsp-worker.py'])
 
@@ -49,12 +49,13 @@ if __main__ == "__main__":
   
   comm.Bcast([buffer, MPI.INT], root=MPI.ROOT)
 
-  results = np.zeros(city_count + 1, 'i')
+  results = np.zeros(city_count + 2, 'i')
   comm.Gather(None, [results, MPI.INT], root=MPI.ROOT)
 
   end_time = MPI.Wtime()
-  print("MASTER", results)
-  print("MASTER", end_time - start_time)
+  print("MASTER - BEST COST", results[-1])
+  print("MASTER - BEST PATH", results[:-1])
+  print("MASTER - TIME", end_time - start_time)
 
   comm.Disconnect()
   exit(1)
